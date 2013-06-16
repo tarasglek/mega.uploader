@@ -15,7 +15,10 @@ class MegaFile:
     def isDir(self):
         # no size, means a dir 
         return not 's' in self.node
-    
+
+    def size(self):
+        return self.node['s']
+
     def id(self):
         return self.node['h']
 
@@ -82,20 +85,24 @@ class MegaUploader:
             return self._files
         sleep = 1
         self._files = self.m().get_files()
+        #print self._files
         return self._files
         
-    def upload(self, fs_filename):
+    def upload(self, fs_filename, size):
+        start = datetime.now()
         dirname = fs_filename
         todo_mkdir = []
         while True:
             try:
-                dir_id = resolve_leaf_id(self.files(), dirname)['h']
+                dir_entry = resolve_leaf_id(self.files(), dirname)
+                dir_id = dir_entry['h']
                 #if the file already exists...todo_mkdir hasn't been filed yet and dirname == filename
                 if len(todo_mkdir) == 0:
                     file_id = dir_id
-                    """if MegaFile(dir_id).isDir():
-                        raise IOError("%s exists as a directory" % fs_filename)"""
-                    print "%s is already uploaded as a file" % fs_filename
+                    mfile = MegaFile(dir_entry)
+                    if mfile.size() != size:
+                        raise Exception("Uploaded size(%d) doesn't match outgoing size(%d)" % (mfile.size(), size))
+                    print "%s is already uploaded as a file, size matches" % fs_filename
                     return file_id
                 # if we got here part of the directory exists
                 break
@@ -109,9 +116,16 @@ class MegaUploader:
         for dirpart in reversed(todo_mkdir):
             #print "mkdir "+dirpart
             ret = self.m().create_folder(dirpart, dir_id)
-            dir_id = ret['f'][0]['h']
-        self._files = None
-        return self.m().upload(fs_filename, dest=dir_id)
+            dir_entry = ret['f'][0]
+            dir_id = dir_entry['h']
+            self._files = None
+
+        ret = self.m().upload(fs_filename, dest=dir_id)
+        delta = (datetime.now() - start)
+        ms = delta.seconds * 1000 + delta.microseconds/1000
+        if ms != 0:
+            print str(1000.0*size/1024/1024/ms) + "MB/s %dbytes in %sseconds %s" % (size, ms/1000, fname)
+
 
 if __name__ == '__main__':
     [config, path] = sys.argv[1:]
@@ -126,9 +140,4 @@ if __name__ == '__main__':
                 bytes_read = os.stat(fname).st_size
                 if bytes_read == 0:
                     continue
-                start = datetime.now()
-                mu.upload(fname)
-                delta = (datetime.now() - start)
-                ms = delta.seconds * 1000 + delta.microseconds/1000
-                if ms != 0:
-                    print str(1000.0*bytes_read/1024/1024/ms) + "MB/s %dbytes in %sseconds %s" % (bytes_read, ms/1000, fname)
+                mu.upload(fname, bytes_read)
