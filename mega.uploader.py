@@ -1,4 +1,5 @@
 from mega import Mega
+import mega.errors
 from datetime import datetime
 import sys
 import os.path
@@ -120,7 +121,16 @@ class MegaUploader:
             dir_id = dir_entry['h']
             self._files = None
 
-        ret = self.m().upload(fs_filename, dest=dir_id)
+        sleep_delay = 1
+        while True:
+            try:
+                ret = self.m().upload(fs_filename, dest=dir_id)
+                break
+            except mega.errors.RequestError as re:
+                print ['Exception during upload', re]
+                print "Sleeping for %d seconds before trying again" % sleep_delay
+                time.sleep(sleep_delay)
+                sleep_delay = sleep_delay * 2
         delta = (datetime.now() - start)
         ms = delta.seconds * 1000 + delta.microseconds/1000
         if ms != 0:
