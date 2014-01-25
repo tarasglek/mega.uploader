@@ -1,6 +1,7 @@
 from mega import Mega
 import mega.errors
 from datetime import datetime
+import time
 import sys
 import os.path
 import os
